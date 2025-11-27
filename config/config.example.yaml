@@ -1,0 +1,106 @@
+# SynthID-Image-Eval Configuration File
+# Copy this file to config.yaml and fill in your credentials
+
+# Google Cloud Configuration
+google_cloud:
+  project_id: "your-project-id"
+  location: "us-central1"
+  credentials_path: "path/to/credentials.json"  # Optional: if not using default credentials
+
+# API Keys
+api_keys:
+  gemini_api_key: "your-gemini-api-key"
+  # Add other API keys as needed
+
+# Image Generation Settings
+generation:
+  model: "imagegeneration@006"  # or latest Imagen model
+  default_prompts:
+    - "A photorealistic sunset over mountains"
+    - "A cat sitting on a windowsill"
+    - "Abstract geometric patterns"
+  images_per_prompt: 5
+  output_format: "PNG"
+  resolution:
+    width: 1024
+    height: 1024
+
+# Transformation Settings
+transformations:
+  # JPEG Compression
+  compression:
+    enabled: true
+    quality_levels: [95, 85, 75, 65, 50, 35, 20]
+
+  # Resizing
+  resize:
+    enabled: true
+    scale_factors: [0.5, 0.75, 1.25, 1.5, 2.0]
+
+  # Rotation
+  rotation:
+    enabled: true
+    angles: [5, 15, 45, 90, 180]
+
+  # Noise Addition
+  noise:
+    enabled: true
+    types: ["gaussian", "salt_pepper", "speckle"]
+    intensity_levels: [0.01, 0.05, 0.1, 0.2]
+
+  # Blur
+  blur:
+    enabled: true
+    kernel_sizes: [3, 5, 7, 11]
+
+  # Cropping
+  crop:
+    enabled: true
+    crop_percentages: [0.05, 0.1, 0.2, 0.3]  # Percentage to crop from edges
+
+  # Brightness/Contrast
+  color_adjust:
+    enabled: true
+    brightness_factors: [0.7, 0.85, 1.15, 1.3]
+    contrast_factors: [0.7, 0.85, 1.15, 1.3]
+    saturation_factors: [0.5, 0.75, 1.25, 1.5]
+
+  # Format Conversion
+  format_conversion:
+    enabled: true
+    formats: ["PNG", "JPEG", "WEBP", "BMP"]
+
+# Detection Settings
+detection:
+  model: "gemini-1.5-pro"  # or latest Gemini model
+  batch_size: 10
+  retry_attempts: 3
+  timeout: 30  # seconds
+
+  # Prompts for detection
+  detection_prompt: |
+    Analyze this image and determine if it appears to be AI-generated.
+    Look for signs of SynthID watermarking or other AI generation artifacts.
+    Provide your assessment and confidence level.
+
+# Testing Configuration
+testing:
+  baseline_runs: 3  # Number of runs for baseline establishment
+  test_runs_per_transformation: 5
+  save_intermediate_results: true
+  generate_visualizations: true
+
+# Output Settings
+output:
+  results_dir: "results"
+  data_dir: "data"
+  log_level: "INFO"
+  save_transformed_images: true
+  generate_report: true
+  report_format: "html"  # html, pdf, markdown
+
+# Experiment Tracking
+experiment:
+  name: "synthid_eval_experiment"
+  description: "Evaluating SynthID robustness against image transformations"
+  track_metadata: true

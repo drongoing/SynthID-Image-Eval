@@ -1,0 +1,42 @@
+# Core Dependencies
+google-cloud-aiplatform>=1.38.0
+google-generativeai>=0.3.0
+Pillow>=10.0.0
+numpy>=1.24.0
+opencv-python>=4.8.0
+
+# Image Processing
+scikit-image>=0.21.0
+imageio>=2.31.0
+imageio-ffmpeg>=0.4.9
+
+# Data Handling
+pandas>=2.0.0
+pyyaml>=6.0
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.14.0
+
+# Progress Tracking
+tqdm>=4.65.0
+
+# Logging
+loguru>=0.7.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# Jupyter Notebooks
+jupyter>=1.0.0
+ipywidgets>=8.0.0
+
+# Utilities
+python-dotenv>=1.0.0
+requests>=2.31.0
+
+# Optional: Advanced Image Processing
+# torchvision>=0.15.0
+# tensorflow>=2.13.0

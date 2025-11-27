@@ -1,0 +1,77 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
+# Configuration files with secrets
+config/config.yaml
+.env
+*.key
+*.pem
+credentials.json
+service-account*.json
+
+# Data directories (contains generated and transformed images)
+data/generated/*
+data/transformed/*
+data/baseline/*
+!data/generated/.gitkeep
+!data/transformed/.gitkeep
+!data/baseline/.gitkeep
+
+# Results
+results/*
+!results/.gitkeep
+*.log
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+temp/
+tmp/
