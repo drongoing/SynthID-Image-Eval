@@ -57,14 +57,16 @@ class SynthIDEvaluationPipeline:
         # Get configuration
         gcloud_config = self.config.get_google_cloud_config()
         gen_config = self.config.get_generation_config()
+        api_keys = self.config.get_api_keys()
 
         # Initialize generator
         generator = ImageGenerator(
             project_id=gcloud_config.get('project_id'),
             location=gcloud_config.get('location', 'us-central1'),
-            model_name=gen_config.get('model', 'imagegeneration@006'),
+            model_name=gen_config.get('model', 'gemini-3-pro-image-preview'),
             output_dir=f"{self.config.get('output.data_dir', 'data')}/generated",
-            credentials_path=gcloud_config.get('credentials_path')
+            credentials_path=gcloud_config.get('credentials_path'),
+            api_key=api_keys.get('gemini_api_key')
         )
 
         # Generate images
