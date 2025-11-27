@@ -132,20 +132,55 @@ class ImageGenerator:
                     response = self.model.generate_content(full_prompt)
 
                     # Extract image from response
-                    # Note: The exact API for Gemini 3 image generation might differ
-                    # This is based on typical Gemini multimodal API patterns
+                    pil_image = None
+
+                    # Try different extraction methods
                     if hasattr(response, 'image'):
+                        # Direct image attribute (uncommon)
                         pil_image = response.image
+                        logger.debug("Extracted image from response.image")
+
+                    elif hasattr(response, 'candidates') and response.candidates:
+                        # Navigate through candidates structure (Gemini 3 format)
+                        candidate = response.candidates[0]
+                        if hasattr(candidate, 'content') and hasattr(candidate.content, 'parts'):
+                            for part in candidate.content.parts:
+                                if hasattr(part, 'inline_data'):
+                                    inline_data = part.inline_data
+
+                                    # The data is already bytes, not base64 encoded
+                                    try:
+                                        # Try as raw bytes first
+                                        pil_image = Image.open(io.BytesIO(inline_data.data))
+                                        logger.debug(f"Extracted image as raw bytes (mime: {inline_data.mime_type if hasattr(inline_data, 'mime_type') else 'unknown'})")
+                                        break
+                                    except Exception as e1:
+                                        # Fallback: try base64 decoding
+                                        try:
+                                            import base64
+                                            decoded_data = base64.b64decode(inline_data.data)
+                                            pil_image = Image.open(io.BytesIO(decoded_data))
+                                            logger.debug("Extracted image after base64 decode")
+                                            break
+                                        except Exception as e2:
+                                            logger.error(f"Failed to extract image: raw={e1}, base64={e2}")
+                                            continue
+
                     elif hasattr(response, 'parts'):
-                        # Handle parts-based response
+                        # Fallback: try parts directly
                         for part in response.parts:
                             if hasattr(part, 'inline_data'):
-                                import base64
-                                image_data = base64.b64decode(part.inline_data.data)
-                                pil_image = Image.open(io.BytesIO(image_data))
-                                break
-                    else:
-                        logger.error(f"Unexpected response format from Gemini model")
+                                inline_data = part.inline_data
+                                try:
+                                    pil_image = Image.open(io.BytesIO(inline_data.data))
+                                    logger.debug("Extracted image from response.parts")
+                                    break
+                                except Exception as e:
+                                    logger.error(f"Failed to extract from parts: {e}")
+                                    continue
+
+                    if pil_image is None:
+                        logger.error(f"Could not extract image from Gemini response")
                         continue
 
                     # Create filename
