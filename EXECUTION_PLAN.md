@@ -167,15 +167,7 @@ transformations:
 ### 3.3 Verify Configuration
 
 ```bash
-# Test that config loads
-python -c "
-import sys
-sys.path.insert(0, 'src')
-from utils.config_loader import get_config
-config = get_config('config/config.yaml')
-print(f'✅ Project ID: {config.get(\"google_cloud.project_id\")}')
-print(f'✅ Config loaded successfully')
-"
+python -c "import sys; sys.path.insert(0, 'src'); from utils.config_loader import get_config; c = get_config('config/config.yaml'); print('Project:', c.get('google_cloud.project_id')); print('Gen Model:', c.get('generation.model')); print('Det Model:', c.get('detection.model'))"
 ```
 
 ---
