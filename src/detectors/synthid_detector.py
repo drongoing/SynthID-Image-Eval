@@ -19,7 +19,7 @@ class SynthIDDetector:
     def __init__(
         self,
         api_key: str,
-        model_name: str = "gemini-1.5-pro",
+        model_name: str = "gemini-3-pro-preview",
         output_dir: str = "results",
         detection_prompt: Optional[str] = None
     ):
@@ -324,7 +324,7 @@ def main():
     parser.add_argument('--api-key', required=True, help='Google Gemini API key')
     parser.add_argument('--input', required=True, help='Input image or directory')
     parser.add_argument('--output', default='results', help='Output directory')
-    parser.add_argument('--model', default='gemini-1.5-pro', help='Gemini model name')
+    parser.add_argument('--model', default='gemini-3-pro-preview', help='Gemini model name')
     parser.add_argument('--pattern', default='*.png', help='File pattern for directory input')
     parser.add_argument('--batch-size', type=int, default=10, help='Batch size for processing')
 
