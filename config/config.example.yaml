@@ -14,7 +14,8 @@ api_keys:
 
 # Image Generation Settings
 generation:
-  model: "imagegeneration@006"  # or latest Imagen model
+  model: "gemini-3-pro-image-preview"  # Gemini 3 Image generation model
+  # Alternative: "imagegeneration@006" for Imagen 2 via Vertex AI
   default_prompts:
     - "A photorealistic sunset over mountains"
     - "A cat sitting on a windowsill"
@@ -71,17 +72,13 @@ transformations:
     formats: ["PNG", "JPEG", "WEBP", "BMP"]
 
 # Detection Settings
+# Note: SynthID watermark detection uses Vertex AI WatermarkVerificationModel
+# This automatically uses the "imageverification@001" model via Vertex AI
+# No model name configuration needed - it detects invisible SynthID watermarks
 detection:
-  model: "gemini-1.5-pro"  # or latest Gemini model
   batch_size: 10
   retry_attempts: 3
-  timeout: 30  # seconds
-
-  # Prompts for detection
-  detection_prompt: |
-    Analyze this image and determine if it appears to be AI-generated.
-    Look for signs of SynthID watermarking or other AI generation artifacts.
-    Provide your assessment and confidence level.
+  # Detection uses google_cloud.project_id and google_cloud.location from above
 
 # Testing Configuration
 testing:

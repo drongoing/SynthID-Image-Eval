@@ -1,4 +1,9 @@
-"""SynthID detection testing module using Google's Gemini API."""
+"""SynthID watermark detection using Vertex AI WatermarkVerificationModel.
+
+IMPORTANT: This uses the actual SynthID watermark detection API, not visual analysis.
+SynthID watermarks are invisible and embedded at the pixel level - they cannot be
+detected by asking an LLM to visually analyze images.
+"""
 
 import os
 import time
@@ -7,98 +12,94 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 import json
 
-import google.generativeai as genai
-from PIL import Image
+import vertexai
+from vertexai.preview.vision_models import Image, WatermarkVerificationModel
 from loguru import logger
 from tqdm import tqdm
 
 
 class SynthIDDetector:
-    """Test SynthID detection using Google's Gemini models."""
+    """Detect SynthID watermarks using Vertex AI WatermarkVerificationModel.
+
+    This detector uses Google's official watermark verification API to detect
+    invisible SynthID watermarks embedded in AI-generated images.
+
+    Note: This only detects watermarks from Google's AI tools (Imagen, Gemini image generation).
+    """
 
     def __init__(
         self,
-        api_key: str,
-        model_name: str = "gemini-3-pro-preview",
+        project_id: str,
+        location: str = "us-central1",
         output_dir: str = "results",
-        detection_prompt: Optional[str] = None
+        credentials_path: Optional[str] = None
     ):
         """
-        Initialize the SynthID detector.
+        Initialize the SynthID watermark detector.
 
         Args:
-            api_key: Google Gemini API key
-            model_name: Name of the Gemini model to use
+            project_id: Google Cloud project ID
+            location: GCP region (default: us-central1)
             output_dir: Directory to save detection results
-            detection_prompt: Custom prompt for detection (optional)
+            credentials_path: Path to GCP service account credentials JSON (optional)
         """
-        self.api_key = api_key
-        self.model_name = model_name
+        self.project_id = project_id
+        self.location = location
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Configure Gemini API
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(model_name)
+        # Set credentials if provided
+        if credentials_path:
+            os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = credentials_path
 
-        # Default detection prompt
-        if detection_prompt is None:
-            self.detection_prompt = """Analyze this image carefully and determine if it appears to be AI-generated.
+        # Initialize Vertex AI
+        logger.info(f"Initializing Vertex AI in project {project_id}, location {location}")
+        vertexai.init(project=project_id, location=location)
 
-Please consider:
-1. Does this image show signs of being created by AI/machine learning models?
-2. Can you detect any watermarking or identification markers (like Google's SynthID)?
-3. Are there any visual artifacts typical of AI-generated images?
-4. What is your confidence level in this assessment?
-
-Provide your response in the following JSON format:
-{
-    "is_ai_generated": true/false,
-    "confidence": 0.0-1.0,
-    "has_synthid_markers": true/false/unknown,
-    "reasoning": "Brief explanation of your assessment",
-    "visual_artifacts": ["list of observed artifacts if any"]
-}"""
-        else:
-            self.detection_prompt = detection_prompt
+        # Load the watermark verification model
+        logger.info("Loading WatermarkVerificationModel (imageverification@001)")
+        self.model = WatermarkVerificationModel.from_pretrained("imageverification@001")
 
         self.results: List[Dict[str, Any]] = []
 
     def detect_single_image(
         self,
         image_path: Path,
-        retries: int = 3,
-        timeout: int = 30
+        retries: int = 3
     ) -> Dict[str, Any]:
         """
-        Test SynthID detection on a single image.
+        Detect SynthID watermark in a single image.
 
         Args:
             image_path: Path to the image file
             retries: Number of retry attempts
-            timeout: Timeout in seconds
 
         Returns:
-            Detection result dictionary
+            Detection result dictionary with watermark_detected and confidence
         """
-        logger.info(f"Analyzing image: {image_path.name}")
+        logger.info(f"Detecting watermark in: {image_path.name}")
 
         for attempt in range(retries):
             try:
-                # Load image
-                image = Image.open(image_path)
+                # Load image using Vertex AI Image class
+                image = Image.load_from_file(str(image_path))
 
-                # Generate response
-                response = self.model.generate_content(
-                    [self.detection_prompt, image],
-                    request_options={"timeout": timeout}
-                )
+                # Verify watermark using the dedicated API
+                response = self.model.verify_image(image=image)
 
-                # Parse response
-                result = self._parse_response(response.text, image_path)
-                logger.info(f"Detection result: AI-generated={result.get('is_ai_generated')}, "
-                          f"Confidence={result.get('confidence')}")
+                # Extract results from response
+                watermark_detected = response.watermark_detected
+                confidence = response.confidence if hasattr(response, 'confidence') else None
 
+                result = {
+                    "image_path": str(image_path),
+                    "success": True,
+                    "watermark_detected": watermark_detected,
+                    "confidence": confidence,
+                    "timestamp": datetime.now().isoformat()
+                }
+
+                logger.info(f"Watermark detected: {watermark_detected}, Confidence: {confidence}")
                 return result
 
             except Exception as e:
@@ -114,82 +115,6 @@ Provide your response in the following JSON format:
                         "timestamp": datetime.now().isoformat()
                     }
 
-    def _parse_response(self, response_text: str, image_path: Path) -> Dict[str, Any]:
-        """
-        Parse Gemini API response.
-
-        Args:
-            response_text: Raw response text from Gemini
-            image_path: Path to the analyzed image
-
-        Returns:
-            Parsed result dictionary
-        """
-        result = {
-            "image_path": str(image_path),
-            "success": True,
-            "timestamp": datetime.now().isoformat(),
-            "raw_response": response_text
-        }
-
-        try:
-            # Try to extract JSON from response
-            import re
-            json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', response_text, re.DOTALL)
-
-            if json_match:
-                parsed = json.loads(json_match.group())
-                result.update({
-                    "is_ai_generated": parsed.get("is_ai_generated", None),
-                    "confidence": parsed.get("confidence", None),
-                    "has_synthid_markers": parsed.get("has_synthid_markers", None),
-                    "reasoning": parsed.get("reasoning", ""),
-                    "visual_artifacts": parsed.get("visual_artifacts", [])
-                })
-            else:
-                # Fallback: analyze response text
-                result["is_ai_generated"] = self._infer_ai_generated(response_text)
-                result["confidence"] = None
-                result["has_synthid_markers"] = "unknown"
-                result["reasoning"] = response_text
-
-        except Exception as e:
-            logger.warning(f"Error parsing response: {e}")
-            result["parse_error"] = str(e)
-
-        return result
-
-    def _infer_ai_generated(self, text: str) -> Optional[bool]:
-        """
-        Infer if image is AI-generated from response text.
-
-        Args:
-            text: Response text
-
-        Returns:
-            True if likely AI-generated, False if not, None if uncertain
-        """
-        text_lower = text.lower()
-
-        positive_indicators = [
-            "ai-generated", "ai generated", "artificial intelligence",
-            "machine learning", "synthid", "watermark"
-        ]
-        negative_indicators = [
-            "not ai", "not artificial", "natural", "photograph",
-            "real photo", "human-created"
-        ]
-
-        positive_count = sum(1 for ind in positive_indicators if ind in text_lower)
-        negative_count = sum(1 for ind in negative_indicators if ind in text_lower)
-
-        if positive_count > negative_count:
-            return True
-        elif negative_count > positive_count:
-            return False
-        else:
-            return None
-
     def detect_batch(
         self,
         image_paths: List[Path],
@@ -197,7 +122,7 @@ Provide your response in the following JSON format:
         delay: float = 1.0
     ) -> List[Dict[str, Any]]:
         """
-        Test SynthID detection on multiple images.
+        Detect SynthID watermarks in multiple images.
 
         Args:
             image_paths: List of image paths
@@ -211,7 +136,7 @@ Provide your response in the following JSON format:
 
         logger.info(f"Processing {len(image_paths)} images")
 
-        for idx, image_path in enumerate(tqdm(image_paths, desc="Detecting SynthID")):
+        for idx, image_path in enumerate(tqdm(image_paths, desc="Detecting SynthID watermarks")):
             result = self.detect_single_image(image_path)
             results.append(result)
             self.results.append(result)
@@ -232,7 +157,7 @@ Provide your response in the following JSON format:
         **kwargs
     ) -> List[Dict[str, Any]]:
         """
-        Test SynthID detection on all images in a directory.
+        Detect SynthID watermarks in all images in a directory.
 
         Args:
             input_dir: Input directory containing images
@@ -257,7 +182,7 @@ Provide your response in the following JSON format:
         transformed_results: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """
-        Compare detection results between baseline and transformed images.
+        Compare watermark detection between baseline and transformed images.
 
         Args:
             baseline_results: Detection results for original images
@@ -268,11 +193,11 @@ Provide your response in the following JSON format:
         """
         baseline_detected = sum(
             1 for r in baseline_results
-            if r.get('success') and r.get('is_ai_generated') == True
+            if r.get('success') and r.get('watermark_detected') == True
         )
         transformed_detected = sum(
             1 for r in transformed_results
-            if r.get('success') and r.get('is_ai_generated') == True
+            if r.get('success') and r.get('watermark_detected') == True
         )
 
         baseline_total = len([r for r in baseline_results if r.get('success')])
@@ -281,12 +206,12 @@ Provide your response in the following JSON format:
         comparison = {
             "baseline": {
                 "total": baseline_total,
-                "detected_as_ai": baseline_detected,
+                "watermark_detected": baseline_detected,
                 "detection_rate": baseline_detected / baseline_total if baseline_total > 0 else 0
             },
             "transformed": {
                 "total": transformed_total,
-                "detected_as_ai": transformed_detected,
+                "watermark_detected": transformed_detected,
                 "detection_rate": transformed_detected / transformed_total if transformed_total > 0 else 0
             },
             "evasion_rate": 1 - (transformed_detected / transformed_total) if transformed_total > 0 else 0,
@@ -304,12 +229,12 @@ Provide your response in the following JSON format:
         """
         if output_file is None:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            output_file = self.output_dir / f"detection_results_{timestamp}.json"
+            output_file = self.output_dir / f"watermark_detection_{timestamp}.json"
 
         with open(output_file, 'w') as f:
             json.dump(self.results, f, indent=2)
 
-        logger.info(f"Saved detection results to {output_file}")
+        logger.info(f"Saved watermark detection results to {output_file}")
 
     def get_results(self) -> List[Dict[str, Any]]:
         """Get all detection results."""
@@ -317,14 +242,17 @@ Provide your response in the following JSON format:
 
 
 def main():
-    """CLI interface for SynthID detection testing."""
+    """CLI interface for SynthID watermark detection."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Test SynthID detection with Gemini")
-    parser.add_argument('--api-key', required=True, help='Google Gemini API key')
+    parser = argparse.ArgumentParser(
+        description="Detect SynthID watermarks using Vertex AI WatermarkVerificationModel"
+    )
+    parser.add_argument('--project-id', required=True, help='Google Cloud project ID')
     parser.add_argument('--input', required=True, help='Input image or directory')
     parser.add_argument('--output', default='results', help='Output directory')
-    parser.add_argument('--model', default='gemini-3-pro-preview', help='Gemini model name')
+    parser.add_argument('--location', default='us-central1', help='GCP region')
+    parser.add_argument('--credentials', help='Path to GCP service account JSON')
     parser.add_argument('--pattern', default='*.png', help='File pattern for directory input')
     parser.add_argument('--batch-size', type=int, default=10, help='Batch size for processing')
 
@@ -332,16 +260,17 @@ def main():
 
     # Create detector
     detector = SynthIDDetector(
-        api_key=args.api_key,
-        model_name=args.model,
-        output_dir=args.output
+        project_id=args.project_id,
+        location=args.location,
+        output_dir=args.output,
+        credentials_path=args.credentials
     )
 
     # Process input
     input_path = Path(args.input)
     if input_path.is_file():
         result = detector.detect_single_image(input_path)
-        print(f"\nDetection result for {input_path.name}:")
+        print(f"\nWatermark detection result for {input_path.name}:")
         print(json.dumps(result, indent=2))
     elif input_path.is_dir():
         results = detector.detect_directory(
@@ -352,8 +281,8 @@ def main():
         print(f"\nProcessed {len(results)} images")
 
         # Summary statistics
-        detected = sum(1 for r in results if r.get('is_ai_generated') == True)
-        print(f"Detected as AI-generated: {detected}/{len(results)}")
+        detected = sum(1 for r in results if r.get('watermark_detected') == True)
+        print(f"Watermarks detected: {detected}/{len(results)}")
     else:
         print(f"Error: {args.input} is not a valid file or directory")
         return

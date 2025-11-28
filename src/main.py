@@ -105,15 +105,15 @@ class SynthIDEvaluationPipeline:
         logger.info("=== Phase 2: Baseline Detection ===")
 
         # Get configuration
-        api_keys = self.config.get_api_keys()
+        gcloud_config = self.config.get_google_cloud_config()
         detection_config = self.config.get_detection_config()
 
-        # Initialize detector
+        # Initialize detector (using Vertex AI WatermarkVerificationModel)
         detector = SynthIDDetector(
-            api_key=api_keys.get('gemini_api_key'),
-            model_name=detection_config.get('model', 'gemini-1.5-pro'),
+            project_id=gcloud_config.get('project_id'),
+            location=gcloud_config.get('location', 'us-central1'),
             output_dir=f"{self.config.get('output.results_dir', 'results')}/baseline",
-            detection_prompt=detection_config.get('detection_prompt')
+            credentials_path=gcloud_config.get('credentials_path')
         )
 
         # Run detection
@@ -123,10 +123,10 @@ class SynthIDEvaluationPipeline:
         )
 
         # Save results
-        detector.save_metadata()
+        detector.save_results()
 
-        detected = sum(1 for r in results if r.get('is_ai_generated') == True)
-        logger.info(f"Baseline detection: {detected}/{len(results)} detected as AI-generated")
+        detected = sum(1 for r in results if r.get('watermark_detected') == True)
+        logger.info(f"Baseline detection: {detected}/{len(results)} watermarks detected")
 
         return results
 
@@ -223,15 +223,15 @@ class SynthIDEvaluationPipeline:
         logger.info("=== Phase 4: Transformed Image Detection ===")
 
         # Get configuration
-        api_keys = self.config.get_api_keys()
+        gcloud_config = self.config.get_google_cloud_config()
         detection_config = self.config.get_detection_config()
 
-        # Initialize detector
+        # Initialize detector (using Vertex AI WatermarkVerificationModel)
         detector = SynthIDDetector(
-            api_key=api_keys.get('gemini_api_key'),
-            model_name=detection_config.get('model', 'gemini-1.5-pro'),
+            project_id=gcloud_config.get('project_id'),
+            location=gcloud_config.get('location', 'us-central1'),
             output_dir=f"{self.config.get('output.results_dir', 'results')}/transformed",
-            detection_prompt=detection_config.get('detection_prompt')
+            credentials_path=gcloud_config.get('credentials_path')
         )
 
         # Flatten all transformed images
@@ -248,8 +248,8 @@ class SynthIDEvaluationPipeline:
         # Save results
         detector.save_results()
 
-        detected = sum(1 for r in results if r.get('is_ai_generated') == True)
-        logger.info(f"Transformed detection: {detected}/{len(results)} detected as AI-generated")
+        detected = sum(1 for r in results if r.get('watermark_detected') == True)
+        logger.info(f"Transformed detection: {detected}/{len(results)} watermarks detected")
 
         return results
 
@@ -318,13 +318,13 @@ class SynthIDEvaluationPipeline:
             logger.info(f"{'='*60}")
 
             # Print key metrics
-            baseline_rate = sum(1 for r in baseline_results if r.get('is_ai_generated')) / len(baseline_results)
-            transformed_rate = sum(1 for r in transformed_results if r.get('is_ai_generated')) / len(transformed_results)
+            baseline_rate = sum(1 for r in baseline_results if r.get('watermark_detected')) / len(baseline_results)
+            transformed_rate = sum(1 for r in transformed_results if r.get('watermark_detected')) / len(transformed_results)
 
             print(f"\n=== Final Results ===")
-            print(f"Baseline Detection Rate: {baseline_rate:.2%}")
-            print(f"Transformed Detection Rate: {transformed_rate:.2%}")
-            print(f"Evasion Rate: {1 - transformed_rate:.2%}")
+            print(f"Baseline Watermark Detection Rate: {baseline_rate:.2%}")
+            print(f"Transformed Watermark Detection Rate: {transformed_rate:.2%}")
+            print(f"Watermark Evasion Rate: {1 - transformed_rate:.2%}")
 
         except Exception as e:
             logger.error(f"Pipeline failed: {e}")
