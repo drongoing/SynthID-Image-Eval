@@ -42,12 +42,19 @@ This guide provides a detailed, practical plan for running your SynthID security
 
 ### 1.2 Get Gemini API Key
 
-1. **Obtain Gemini API access**
+1. **Obtain Gemini API access** (for image generation only)
    - Go to https://ai.google.dev/
    - Sign in and create an API key
-   - Or use Vertex AI Gemini (same credentials as above)
+   - This is used for generating images with Gemini 3 Image
 
 2. **Note your API key** - you'll add this to `.env` later
+
+**Important Note on SynthID Detection:**
+- SynthID watermark detection uses **Vertex AI WatermarkVerificationModel**, NOT Gemini API
+- This is a dedicated watermark detection API (imageverification@001)
+- It detects invisible SynthID watermarks embedded at the pixel level
+- The service account credentials from step 1.1 are used for detection
+- You don't need a separate "detection model" configuration
 
 ### 1.3 Check API Quotas
 
@@ -58,9 +65,10 @@ This guide provides a detailed, practical plan for running your SynthID security
 - Request quota increases if needed for large-scale testing
 
 **Cost Estimate:**
-- Image generation: ~$0.04 per image (Imagen)
-- Gemini API: ~$0.0025 per image analysis
-- For 100 images with 10 transformations: ~$6-10 total
+- Image generation (Gemini 3 Image): ~$0.04-0.08 per image
+- Watermark detection (Vertex AI): Included with Vertex AI usage
+- For 100 images with 10 transformations: ~$5-10 total
+- Note: Actual costs depend on your GCP pricing tier and region
 
 ---
 
@@ -167,7 +175,7 @@ transformations:
 ### 3.3 Verify Configuration
 
 ```bash
-python -c "import sys; sys.path.insert(0, 'src'); from utils.config_loader import get_config; c = get_config('config/config.yaml'); print('Project:', c.get('google_cloud.project_id')); print('Gen Model:', c.get('generation.model')); print('Det Model:', c.get('detection.model'))"
+python -c "import sys; sys.path.insert(0, 'src'); from utils.config_loader import get_config; c = get_config('config/config.yaml'); print('Project:', c.get('google_cloud.project_id')); print('Gen Model:', c.get('generation.model')); print('Location:', c.get('google_cloud.location'))"
 ```
 
 ---
@@ -215,30 +223,34 @@ ls -lh data/transformed/
 ### 4.3 Test SynthID Detection
 
 ```bash
-# Test detection on original image
+# Test watermark detection on original image using Vertex AI
 python src/detectors/synthid_detector.py \
-  --api-key YOUR_GEMINI_API_KEY \
+  --project-id YOUR_PROJECT_ID \
   --input data/generated \
   --output results/test \
-  --pattern "*.png"
+  --pattern "*.png" \
+  --credentials config/credentials.json  # if using service account
 
 # Check results
-cat results/test/detection_results_*.json
+cat results/test/watermark_detection_*.json
 ```
 
-**Expected result:** JSON file with detection results showing the image was detected as AI-generated
+**Expected result:** JSON file with watermark detection results showing `watermark_detected: true` for AI-generated images
+
+**Note:** This uses Vertex AI's WatermarkVerificationModel (imageverification@001), which detects the invisible SynthID watermark embedded in images. It does NOT use Gemini for visual analysis.
 
 ### 4.4 Test on Transformed Images
 
 ```bash
-# Test detection on transformed images
+# Test watermark detection on transformed images
 python src/detectors/synthid_detector.py \
-  --api-key YOUR_GEMINI_API_KEY \
+  --project-id YOUR_PROJECT_ID \
   --input data/transformed \
-  --output results/test_transformed
+  --output results/test_transformed \
+  --credentials config/credentials.json  # if using service account
 ```
 
-**Expected result:** Detection results for transformed images (may vary)
+**Expected result:** Watermark detection results for transformed images (detection rate may vary based on transformation severity - this is what you're testing!)
 
 ---
 
@@ -311,9 +323,10 @@ start results/report_*.html  # Windows
 ```
 
 **What to look for:**
-- Detection rate on baseline images (should be high, ~90-100%)
-- Detection rate on transformed images (this is your research finding!)
-- Which transformations are most effective at evading detection
+- Watermark detection rate on baseline images (should be near 100% for Google AI-generated images)
+- Watermark detection rate on transformed images (this is your research finding!)
+- Which transformations are most effective at breaking the watermark
+- Trade-off between image quality and watermark evasion
 
 ---
 
@@ -384,12 +397,13 @@ python src/transformers/image_transformer.py \
   --input data/generated \
   --output data/transformed
 
-# Then detection in smaller batches
+# Then watermark detection in smaller batches
 # Edit config.yaml detection.batch_size: 5
 python src/detectors/synthid_detector.py \
-  --api-key YOUR_KEY \
+  --project-id YOUR_PROJECT_ID \
   --input data/transformed \
-  --batch-size 5
+  --batch-size 5 \
+  --credentials config/credentials.json
 ```
 
 ### 6.3 Monitor Progress
@@ -435,13 +449,13 @@ jupyter notebook notebooks/example_usage.ipynb
 For responsible disclosure, document:
 
 1. **Baseline Performance**
-   - Detection rate on unmodified AI-generated images
-   - Confidence scores
+   - Watermark detection rate on unmodified AI-generated images from Google's models
+   - Confidence scores (if available)
 
 2. **Vulnerability Findings**
-   - Which transformations evade detection most effectively
-   - At what intensity levels detection fails
-   - Combination effects
+   - Which transformations break the SynthID watermark most effectively
+   - At what intensity levels watermark detection fails
+   - Combination effects of multiple transformations
 
 3. **Reproducibility**
    - Exact transformation parameters
@@ -545,7 +559,7 @@ python src/main.py --config config/config.yaml
 # Individual components
 python src/generators/image_generator.py --project-id PROJECT --prompt "test" --count 1
 python src/transformers/image_transformer.py --input data/generated --output data/transformed
-python src/detectors/synthid_detector.py --api-key KEY --input data/transformed
+python src/detectors/synthid_detector.py --project-id PROJECT --input data/transformed --credentials config/credentials.json
 python src/utils/results_analyzer.py --baseline B.json --transformed T.json
 
 # Jupyter analysis
